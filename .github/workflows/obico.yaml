@@ -43,7 +43,7 @@ jobs:
             image: ghcr.io/lexfrei/obico-ml-api
     steps:
       - name: Checkout obico-server
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.OBICO_REPO }}
           ref: ${{ env.OBICO_REF }}
