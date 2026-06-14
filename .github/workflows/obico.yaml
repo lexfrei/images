@@ -48,10 +48,14 @@ jobs:
           ref: ${{ env.OBICO_REF }}
           path: obico
 
-      - name: Compute CalVer from the obico commit date
+      - name: Compute CalVer from the obico commit date (UTC)
         id: calver
         run: |
-          version="$(git -C obico show --no-patch --format=%cd --date=format:'%Y.%-m.%-d' HEAD)"
+          # Use the commit's Unix timestamp formatted in UTC so the version is
+          # deterministic and monotonic with commit order, independent of the
+          # committer's timezone.
+          epoch="$(git -C obico show --no-patch --format=%ct HEAD)"
+          version="$(date -u -d "@${epoch}" +'%Y.%-m.%-d')"
           short_sha="$(git -C obico rev-parse --short HEAD)"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "short_sha=${short_sha}" >> "${GITHUB_OUTPUT}"
