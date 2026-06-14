@@ -7,14 +7,15 @@ name: Build Obico images
 # the CalVer tag via Renovate.
 
 on:
+  # Renovate bumps OBICO_REF in this file when the obico release branch moves;
+  # that push rebuilds and republishes the images. workflow_dispatch covers
+  # manual rebuilds. No schedule on purpose: GitHub disables scheduled workflows
+  # after 60 days of repo inactivity, which is exactly when upstream is dormant.
   push:
     branches: [master]
     paths:
       - .github/workflows/obico.yaml
   workflow_dispatch: {}
-  schedule:
-    # Monthly rebuild to pick up base-image security updates.
-    - cron: "0 4 1 * *"
 
 permissions:
   contents: read
