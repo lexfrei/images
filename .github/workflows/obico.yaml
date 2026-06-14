@@ -1,0 +1,114 @@
+name: Build Obico images
+
+# Obico (obico-server) does not publish ready-to-run images: its docker-compose
+# builds them from source. This workflow builds the web and ml-api images from a
+# pinned obico-server release commit and publishes them to GHCR, tagged with a
+# CalVer derived from the obico commit date. The chart in lexfrei/charts tracks
+# the CalVer tag via Renovate.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/obico.yaml
+  workflow_dispatch: {}
+  schedule:
+    # Monthly rebuild to pick up base-image security updates.
+    - cron: "0 4 1 * *"
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  OBICO_REPO: TheSpaghettiDetective/obico-server
+  OBICO_BRANCH: release
+  # renovate: datasource=git-refs depName=TheSpaghettiDetective/obico-server
+  OBICO_REF: 9b73caa7b373e89fd23bf2fed646e629ee602640
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web
+            context: backend
+            image: ghcr.io/lexfrei/obico-web
+          - name: ml-api
+            context: ml_api
+            image: ghcr.io/lexfrei/obico-ml-api
+    steps:
+      - name: Checkout obico-server
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OBICO_REPO }}
+          ref: ${{ env.OBICO_REF }}
+          path: obico
+
+      - name: Compute CalVer from the obico commit date
+        id: calver
+        run: |
+          version="$(git -C obico show --no-patch --format=%cd --date=format:'%Y.%-m.%-d' HEAD)"
+          short_sha="$(git -C obico rev-parse --short HEAD)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "short_sha=${short_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Move the prebuilt frontend into the web build context
+        if: matrix.name == 'web'
+        run: |
+          mv obico/frontend obico/backend/
+          echo 'RUN ln -s /app/frontend /frontend' >> obico/backend/Dockerfile
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ steps.calver.outputs.version }}
+            type=raw,value=${{ env.OBICO_BRANCH }}
+            type=raw,value=sha-${{ steps.calver.outputs.short_sha }}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.source=https://github.com/lexfrei/images
+            org.opencontainers.image.title=obico-${{ matrix.name }}
+            org.opencontainers.image.description=Obico ${{ matrix.name }} built from obico-server ${{ env.OBICO_BRANCH }}
+            org.opencontainers.image.version=${{ steps.calver.outputs.version }}
+            org.opencontainers.image.revision=${{ env.OBICO_REF }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: obico/${{ matrix.context }}
+          # amd64 only for now: the ml-api base image is CUDA-based and arm64
+          # support requires the Jetson base, which is out of scope for v1.
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign the image (keyless)
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${{ matrix.image }}@${DIGEST}"

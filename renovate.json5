@@ -1,0 +1,21 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  automerge: true,
+  platformAutomerge: true,
+  // Track the obico-server release branch HEAD and bump OBICO_REF so the build
+  // workflow rebuilds the images from the latest upstream commit.
+  customManagers: [
+    {
+      customType: 'regex',
+      managerFilePatterns: ['/^\\.github/workflows/obico\\.yaml$/'],
+      matchStrings: [
+        'OBICO_REPO: (?<depName>.+)',
+        'OBICO_BRANCH: (?<currentValue>.+)\\s+# renovate:.*\\s+OBICO_REF: (?<currentDigest>.+)',
+      ],
+      matchStringsStrategy: 'combination',
+      datasourceTemplate: 'git-refs',
+      depNameTemplate: 'https://github.com/{{{depName}}}',
+    },
+  ],
+}
