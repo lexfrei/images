@@ -37,10 +37,19 @@ jobs:
         include:
           - name: web
             context: backend
+            file: obico/backend/Dockerfile
             image: ghcr.io/lexfrei/obico-web
-          - name: ml-api
+          # Slim CPU inference image (ONNX Runtime, no CUDA). Built with this
+          # repo's own Containerfile against the checked-out ml_api context.
+          - name: ml-api-cpu
             context: ml_api
-            image: ghcr.io/lexfrei/obico-ml-api
+            file: obico-ml-api-cpu.Containerfile
+            image: ghcr.io/lexfrei/obico-ml-api-cpu
+          # CUDA inference image (upstream ml_api/Dockerfile on the CUDA base).
+          - name: ml-api-gpu
+            context: ml_api
+            file: obico/ml_api/Dockerfile
+            image: ghcr.io/lexfrei/obico-ml-api-gpu
     steps:
       - name: Checkout obico-server
         uses: actions/checkout@v4
@@ -99,6 +108,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: obico/${{ matrix.context }}
+          file: ${{ matrix.file }}
           # amd64 only for now: the ml-api base image is CUDA-based and arm64
           # support requires the Jetson base, which is out of scope for v1.
           platforms: linux/amd64
