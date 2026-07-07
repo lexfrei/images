@@ -1,0 +1,99 @@
+name: Build keepalived image
+
+# keepalived publishes no ready-to-run image; on Alpine it is just the
+# `keepalived` apk package. The vipalived chart used to install it at pod start
+# via `apk add`, which breaks airgapped clusters. This workflow bakes keepalived
+# into an image so the chart can run offline. Multi-arch (amd64 + arm64) to match
+# the arches the plain `alpine` image previously covered. The image is tagged
+# with the keepalived version, which the chart in lexfrei/charts tracks via
+# Renovate.
+
+on:
+  # Renovate bumps KEEPALIVED_VERSION (and the Alpine base) in the Containerfile;
+  # the resulting push rebuilds and republishes the image. workflow_dispatch
+  # covers manual rebuilds. No schedule on purpose: GitHub disables scheduled
+  # workflows after 60 days of repo inactivity.
+  push:
+    branches: [master]
+    paths:
+      - keepalived/**
+      - .github/workflows/keepalived.yaml
+  # Build (without pushing) on PRs that touch the image so a Renovate version
+  # bump is exercised by `apk add` on both arches before it can merge — a bad
+  # bump (e.g. an Alpine base bump that drops the pinned keepalived version)
+  # fails here instead of on master.
+  pull_request:
+    paths:
+      - keepalived/**
+      - .github/workflows/keepalived.yaml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read the pinned keepalived version
+        id: ver
+        run: |
+          # The ARG already holds the upstream keepalived version (no Alpine
+          # package revision), which is exactly the image tag.
+          version="$(grep -oP 'ARG KEEPALIVED_VERSION=\K.*' keepalived/Containerfile)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/lexfrei/keepalived
+          tags: |
+            type=raw,value=${{ steps.ver.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.source=https://github.com/lexfrei/images
+            org.opencontainers.image.title=keepalived
+            org.opencontainers.image.description=keepalived baked on Alpine for airgapped use
+            org.opencontainers.image.version=${{ steps.ver.outputs.version }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: keepalived
+          file: keepalived/Containerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign the image (keyless)
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "ghcr.io/lexfrei/keepalived@${DIGEST}"

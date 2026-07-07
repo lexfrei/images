@@ -1,0 +1,23 @@
+# keepalived publishes no ready-to-run image; on Alpine it is just the
+# `keepalived` apk package. The vipalived chart used to install it at pod start
+# via `apk add`, which breaks airgapped clusters. Baking it into the image lets
+# the chart run fully offline.
+FROM alpine:3.24
+
+# Repology reports the upstream keepalived version (e.g. 2.3.4) WITHOUT the
+# Alpine package revision, so the pin below uses apk's fuzzy `=~` operator, which
+# resolves to the latest -rN of that version (2.3.4 -> 2.3.4-r2). When bumping
+# the Alpine base above, also update alpine_3_24 -> alpine_3_XX here — Renovate
+# does not rewrite the depName inside this comment.
+# renovate: datasource=repology depName=alpine_3_24/keepalived versioning=loose
+ARG KEEPALIVED_VERSION=2.3.4
+
+# The apk package does not create /etc/keepalived; create it so keepalived's
+# default config path (and the vipalived static-pod heredoc that writes there)
+# works out of the box.
+RUN apk add --no-cache "keepalived=~${KEEPALIVED_VERSION}" \
+    && mkdir -p /etc/keepalived
+
+# Run in the foreground so the image is usable and debuggable standalone. The
+# vipalived chart overrides this with its own flags in both workload modes.
+ENTRYPOINT ["keepalived", "--dont-fork", "--log-console"]
