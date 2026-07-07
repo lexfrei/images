@@ -51,6 +51,12 @@ jobs:
             file: obico/ml_api/Dockerfile
             image: ghcr.io/lexfrei/obico-ml-api-gpu
     steps:
+      # Checked out first, at the workspace root, so this repo's own CPU
+      # Containerfile is available. The obico-server checkout below lands in a
+      # subdirectory and provides only the build context.
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
       - name: Checkout obico-server
         uses: actions/checkout@v4
         with:
