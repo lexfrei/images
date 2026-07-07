@@ -3,10 +3,33 @@
   extends: ['config:recommended'],
   automerge: true,
   platformAutomerge: true,
-  // Track the obico-server release branch HEAD and bump OBICO_REF so the build
-  // workflow rebuilds the images from the latest upstream commit.
+  packageRules: [
+    {
+      // Don't auto-merge the keepalived image's Alpine base bump: the repology
+      // depName in keepalived/Containerfile is pinned to a specific Alpine
+      // branch (alpine_3_24) and the fuzzy keepalived pin must still resolve on
+      // the new base, so a human coordinates the bump. keepalived version bumps
+      // (via the customManager below) still auto-merge.
+      matchFileNames: ['keepalived/Containerfile'],
+      matchDepNames: ['alpine'],
+      automerge: false,
+    },
+  ],
   customManagers: [
     {
+      // The built-in dockerfile manager tracks `FROM alpine` in the Containerfile
+      // but does NOT read `# renovate:` comments on ARG lines used in RUN. This
+      // custom manager bumps the pinned KEEPALIVED_VERSION from its comment.
+      customType: 'regex',
+      managerFilePatterns: ['/(^|/)Containerfile$/'],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+ARG \\w+=(?<currentValue>\\S+)',
+      ],
+      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}loose{{/if}}',
+    },
+    {
+      // Track the obico-server release branch HEAD and bump OBICO_REF so the
+      // build workflow rebuilds the images from the latest upstream commit.
       customType: 'regex',
       managerFilePatterns: ['/^\\.github/workflows/obico\\.yaml$/'],
       matchStrings: [

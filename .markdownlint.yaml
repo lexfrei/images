@@ -1,0 +1,5 @@
+# Each image gets a parallel section (## Obico, ## keepalived) that intentionally
+# repeats the same ### subheadings (Tags, Auto-update, Verification), so allow
+# duplicate headings as long as they live under different parents.
+MD024:
+  siblings_only: true
