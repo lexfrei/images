@@ -55,10 +55,10 @@ jobs:
       # Containerfile is available. The obico-server checkout below lands in a
       # subdirectory and provides only the build context.
       - name: Checkout this repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Checkout obico-server
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.OBICO_REPO }}
           ref: ${{ env.OBICO_REF }}
