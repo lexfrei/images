@@ -26,7 +26,7 @@ env:
   OBICO_REPO: TheSpaghettiDetective/obico-server
   OBICO_BRANCH: release
   # renovate: datasource=git-refs depName=TheSpaghettiDetective/obico-server
-  OBICO_REF: 9b73caa7b373e89fd23bf2fed646e629ee602640
+  OBICO_REF: 49c0bc7001a3fd8d56297fc3032ba287bfe1d50b
 
 jobs:
   build:
