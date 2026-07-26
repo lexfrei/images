@@ -10,7 +10,7 @@
 #
 # Python 3.8 mirrors the runtime of the CUDA base image (Ubuntu 20.04). Keep it
 # in lockstep with that base and with the pinned inference dependencies below.
-FROM python:3.8-slim
+FROM python:3.14-slim
 
 # libgomp1: OpenMP runtime required by ONNX Runtime.
 # libglib2.0-0: shared object required by opencv-python-headless.
