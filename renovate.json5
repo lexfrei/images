@@ -2,7 +2,14 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: ['config:recommended'],
   automerge: true,
-  platformAutomerge: true,
+  // Renovate does the merge itself. GitHub auto-merge only applies to a PR that
+  // is not yet mergeable, and master here has no required status check, so the
+  // API rejects enabling it ("Pull request is in clean status") and the update
+  // just sits there.
+  platformAutomerge: false,
+  // Neither workflow runs on pull_request, so a PR carries no status checks at
+  // all and Renovate would wait forever for a green it can never see.
+  ignoreTests: true,
   packageRules: [
     {
       // Don't auto-merge the keepalived image's Alpine base bump: the repology
